@@ -31,7 +31,7 @@ def fasta_iter(f, blocksize=int(1e7)):
 
     name_line, seq_lines = "", []
     # inspired by https://speakerdeck.com/pyconslides/transforming-code-into-beautiful-idiomatic-python-by-raymond-hettinger-1
-    for block in iter(partial(fobj.readlines, blocksize), []): #file_block_iter(f, blocksize=blocksize):
+    for block in iter(partial(fobj.readlines, blocksize), []):
         for line in block:
             if line.startswith(">"):
                 if seq_lines:
@@ -167,9 +167,3 @@ if __name__ == '__main__':
         pass
     print i
     print "fasta_iter", time.time() - t
-
-    t = time.time()
-    for i,j in fasta_iter(f):
-        pass
-    print i
-    print "fasta_iter2", time.time() - t
