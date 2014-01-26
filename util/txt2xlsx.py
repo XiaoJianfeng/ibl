@@ -39,11 +39,11 @@ def txt2xlsx(f_out, *f_in, **kwds):
 #-----------------------------------------------------------------------------
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='convert txt to excel xlsx')
-    parser.add_argument('-d', '--delimeter', default='\t', help="delimeter for the txt file")
+    parser.add_argument('-d', '--delimiter', default='\t', help="delimiter for the txt file")
     parser.add_argument('input', nargs='*', default=['-'], help="input file[s], blank for stdin")
     parser.add_argument('output', help="output file")
 
     args = parser.parse_args()
 
-    txt2xlsx(args.output, *args.input, sep=args.delimeter)
+    txt2xlsx(args.output, *args.input, sep=args.delimiter)
 
