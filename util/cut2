@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+
+
+#-----------------------------------------------------------------------------
+if __name__ == '__main__':
+    import argparse
+    from cut2 import cut2
+
+    parser = argparse.ArgumentParser(description='work likes cut, but the order of columns are reserved, \
+            and duplicate columns are also reserved.')
+    parser.add_argument('-d', '--delimiter', default='\t', help="delimiter for the txt file")
+    parser.add_argument('-o', '--output', default='-', help="output file, default to stdout")
+    parser.add_argument('-f', '--fields', help="fields to cut, the number starts from 1. \
+            For example, '2', '3,2,5-8', '3-', ' -3,5,2'(note the preceding blank here) ")
+    parser.add_argument('input', nargs='?', default='-', help="input file, blank for stdin")
+
+    args = parser.parse_args()
+
+    try:
+        cut2(f_in=args.input, fields=args.fields, f_out=args.output, delimiter=args.delimiter)
+    except Exception as e:
+        sys.stderr.write("cut2: {}\nTry `cut2 --help' for more information.".format(e))
+        sys.exit()
