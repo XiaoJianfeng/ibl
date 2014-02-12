@@ -3,7 +3,6 @@
 import sys
 import argparse
 import csv
-import re
 from operator import itemgetter
 from compiler.ast import flatten
 
