@@ -3,7 +3,6 @@
 import sys
 import argparse
 import csv
-import re
 from operator import itemgetter
 from compiler.ast import flatten
 
@@ -132,5 +131,5 @@ if __name__ == '__main__':
     try:
         cut2(f_in=args.input, fields=args.fields, f_out=args.output, delimiter=args.delimiter)
     except Exception as e:
-        sys.stderr.write("cut2: {}\nTry `cut2 --help' for more information.".format(e))
+        sys.stderr.write("cut2: {}\nTry `cut2 --help' for more information.\n".format(e))
         sys.exit()
