@@ -1,17 +1,21 @@
 #!/usr/bin/env python
 
+#-----------------------------------------------------------------------------
 import sys
 import argparse
 import csv
-from compiler.ast import flatten
+
+# so python will exit gracefully when in a pipe
+from signal import signal, SIGPIPE, SIG_DFL
+signal(SIGPIPE, SIG_DFL)
+
+#-----------------------------------------------------------------------------
 
 """
-like cut, but the order of fields are preserved.
+usage: cut2.py [-h] [-d DELIMITER] [-o OUTPUT] [-f FIELDS] [input]
 
-usage: cut2 [-h] [-d DELIMITER] [-o OUTPUT] [-f FIELDS] [input]
-
-work likes cut, but the order of columns are reserved, and duplicate columns
-are also reserved.
+work likes cut, but 1) the order of columns are reserved; 2) duplicate columns
+are also reserved; and 3) blank column[s] will be added if necessary.
 
 positional arguments:
   input                 input file, blank for stdin
@@ -23,14 +27,17 @@ optional arguments:
   -o OUTPUT, --output OUTPUT
                         output file, default to stdout
   -f FIELDS, --fields FIELDS
-                        fields to cut, the number starts from 1. For example,
-                        '2', '3,2,5-8', '3-', ' -3,5,2'(note the preceding
-                        blank here)
+                        fields to cut, the number starts from 1, and blank
+                        item will be added if the field number is greater than
+                        columns in a row. For example, '2', '3,2,5-8', '3-',
+                        '2,-3', ' -3,5,2'(note the preceding blank before
+                        '-3')
 
 Note:
 1) column numbers starts from 1, not 0 as in python.
 
 2) what flatten does:
+   >>> from compiler.ast import flatten
    >>> flatten([0, [1, 2], [3, 4, [5, 6]], 7])
    [0, 1, 2, 3, 4, 5, 6, 7]
    >>> flatten(['a', ['b','c']])
@@ -41,6 +48,7 @@ Note:
 3) when install the script, make a symbolic link like this: 
     ln -s cut2.py cut2
 """
+
 
 #-----------------------------------------------------------------------------
 def fieldgetter(fields):
@@ -73,30 +81,36 @@ def fieldgetter(fields):
         else:
             raise Exception("invlid fields: {} in {}".format(item, fields))
 
-    # def func(row):
-    #     result = []
-    #     L = len(row)
-    #     for i in idx:
-    #         if isinstance(i, int) and 0 <= i < L:
-    #             result.append(row[i])
-    #         elif isinstance(i, slice):
-    #             result.extend(row[i])
-    #     return result
-    # return func
-
     def func(row):
-        """a wrapper function returned"""
-
-        try:
-            raw = [row[i] for i in idx]
-        except:
-            raise Exception("fields_getter(): Index %s not recognized." % idx)
-
-        return flatten(raw)
-
+        result = []
+        L = len(row)
+        for i in idx:
+            if isinstance(i, int):
+                if 0 <= i < L:
+                    result.append(row[i])
+                else:
+                    result.append('')
+            elif isinstance(i, slice):
+                result.extend(row[i])
+            else:
+                raise Exception("fields_getter(): '%s' in Index %s not recognized." % (i, idx))
+        return result
     return func
 
+    # def func(row):
+    #     """a wrapper function returned"""
 
+    #     try:
+    #         raw = [row[i] for i in idx]
+    #     except:
+    #         raise Exception("fields_getter(): Index %s not recognized." % idx)
+
+    #     return flatten(raw)
+
+    # return func
+
+
+#-----------------------------------------------------------------------------
 def cut2(f_in, fields, f_out='-', delimiter='\t'):
     """
     Cut fields specified by fields.
@@ -133,12 +147,13 @@ def cut2(f_in, fields, f_out='-', delimiter='\t'):
 
 #-----------------------------------------------------------------------------
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='work likes cut, but the order of columns are reserved, \
-            and duplicate columns are also reserved.')
+    parser = argparse.ArgumentParser(description='work likes cut, but \n 1) the order of columns are reserved; \
+            2) duplicate columns are also reserved; and 3) blank column[s] will be added if necessary.')
     parser.add_argument('-d', '--delimiter', default='\t', help="delimiter for the txt file")
     parser.add_argument('-o', '--output', default='-', help="output file, default to stdout")
-    parser.add_argument('-f', '--fields', help="fields to cut, the number starts from 1. \
-            For example, '2', '3,2,5-8', '3-', ' -3,5,2'(note the preceding blank here) ")
+    parser.add_argument('-f', '--fields', help="fields to cut, the number starts from 1, and blank item will \
+            be added if the field number is greater than columns in a row. \
+            For example, '2', '3,2,5-8', '3-', '2,-3', ' -3,5,2'(note the preceding blank before '-3') ")
     parser.add_argument('input', nargs='?', default='-', help="input file, blank for stdin")
 
     args = parser.parse_args()
