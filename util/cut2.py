@@ -3,7 +3,6 @@
 import sys
 import argparse
 import csv
-from operator import itemgetter
 from compiler.ast import flatten
 
 """
@@ -38,6 +37,9 @@ Note:
    ['a', 'b', 'c']
    >>> flatten(['aaa', 'bbb'])
    ['aaa', 'bbb']
+
+3) when install the script, make a symbolic link like this: 
+    ln -s cut2.py cut2
 """
 
 #-----------------------------------------------------------------------------
@@ -50,7 +52,7 @@ def fieldgetter(fields):
     """
 
     # remove ' '
-    fields = fields.strip().replace(' ', '')  
+    fields = fields.strip().replace(' ', '')
 
     idx = []  # the return value
     items = fields.split(',')
@@ -71,16 +73,29 @@ def fieldgetter(fields):
         else:
             raise Exception("invlid fields: {} in {}".format(item, fields))
 
+    # def func(row):
+    #     result = []
+    #     L = len(row)
+    #     for i in idx:
+    #         if isinstance(i, int) and 0 <= i < L:
+    #             result.append(row[i])
+    #         elif isinstance(i, slice):
+    #             result.extend(row[i])
+    #     return result
+    # return func
+
     def func(row):
-        result = []
-        L = len(row)
-        for i in idx:
-            if isinstance(i, int) and 0 <= i < L:
-                result.append(row[i])
-            elif isinstance(i, slice):
-                result.extend(row[i])
-        return result
+        """a wrapper function returned"""
+
+        try:
+            raw = [row[i] for i in idx]
+        except:
+            raise Exception("fields_getter(): Index %s not recognized." % idx)
+
+        return flatten(raw)
+
     return func
+
 
 def cut2(f_in, fields, f_out='-', delimiter='\t'):
     """
@@ -114,7 +129,7 @@ def cut2(f_in, fields, f_out='-', delimiter='\t'):
     #for row in f:
     #    line = get_field(row)
     #    fobj_out.write("%s\n" % delimiter.join(line))
-        
+
 
 #-----------------------------------------------------------------------------
 if __name__ == '__main__':
