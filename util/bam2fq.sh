@@ -51,39 +51,39 @@ sqlite3 <<-EOF
 PRAGMA journal_mode = memory;
 PRAGMA cache_size   = 1000000;
 
-select date()||" "||time()||" begin";
+select datetime('now', 'localtime')||" begin";
 CREATE TABLE fastq (qname, flag, seq, qual);
 
-select date()||" "||time()||" import begin";
+select datetime('now', 'localtime')||" import begin";
 .separator "\t"
 .import tmp.$$ fastq
 CREATE INDEX qname_idx on fastq (qname);
 
-select date()||" "||time()||" import done";
+select datetime('now', 'localtime')||" import done";
 
 CREATE TABLE left as select qname from fastq where flag & 2368 == 64;
 CREATE TABLE right as select qname from fastq where flag & 2432 == 128;
 
-select date()||" "||time()||" create left right done";
+select datetime('now', 'localtime')||" create left right done";
 
 CREATE INDEX left_idx on left (qname);
 CREATE INDEX right_idx on right (qname);
 
-select date()||" "||time()||" create left right index done";
+select datetime('now', 'localtime')||" create left right index done";
 
 .output ${left_file_tmp}
 .separator "\n"
 select distinct "@"||fastq.qname||"/1", seq, '+', qual from right join fastq on fastq.qname == right.qname where flag&2368 == 64 order by right.qname;
 
 .output stderr
-select date()||" "||time()||" create left reads done";
+select datetime('now', 'localtime')||" create left reads done";
 
 .output ${right_file_tmp}
 .separator "\n"
 select distinct "@"||fastq.qname||"/2", seq, '+', qual from left join fastq on fastq.qname == left.qname where flag&2432 == 128 order by left.qname;
 
 .output stderr
-select date()||" "||time()||" create right reads done";
+select datetime('now', 'localtime')||" create right reads done";
 .exit
 EOF
 
