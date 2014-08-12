@@ -3,7 +3,7 @@
 #
 # Author: Xiao Jianfeng
 #
-# last modified: 2014.08.11
+# last modified: 2014.08.12
 # Date:          2014.08.05
 
 if [ $# -eq 0 -o "$1" == "-h" -o "$1" == "--help" ]
@@ -22,20 +22,13 @@ else
         prefix=${1%.bam}
 fi
 
-# bam_file=WGC021367D.mapped.bam
-
 left_file=${prefix}_1.fq.gz
 right_file=${prefix}_2.fq.gz
-left_file_tmp=tmp.left.$$
-right_file_tmp=tmp.right.$$
-
-mkfifo ${left_file_tmp}
-mkfifo ${right_file_tmp}
-gzip -c < ${left_file_tmp} > ${left_file} &
-gzip -c < ${right_file_tmp} > ${right_file} &
 
 tmp_file=tmp.$$
-mkfifo ${tmp_file}
+
+rm -f ${tmp_file} ${tmp_file}.qname ${tmp_file}.seq ${tmp_file}.qual
+mkfifo ${tmp_file} 
 
 # for test, use 'head -n 10000' to limit the input
 # samtools view ${bam_file} | cut -f 1,2,10,11 | head -n 2000000 > ${tmp_file} &
@@ -45,6 +38,9 @@ samtools view ${bam_file} | cut -f 1,2,10,11 > ${tmp_file} &
 # so primary alignment of first read should be flag & 0x940 (ie. 2368) == 0x40, and for second read flag & 0x980 (ie. 2432) == 0x80
 # CREATE TABLE left as select qname from fastq where flag & 2368 == 64;
 # CREATE TABLE right as select qname from fastq where flag & 2432 == 128;
+
+# in bam files (at least bam files outputed by bwa), sequence of two reads of a pair are on the same strand, so I just output the reverse
+# complement of read_2 in each pair, and leave read_1 unchanged.
 
 sqlite3 <<-EOF
 .output stderr
@@ -56,7 +52,7 @@ CREATE TABLE fastq (qname, flag, seq, qual);
 
 select datetime('now', 'localtime')||" import begin";
 .separator "\t"
-.import tmp.$$ fastq
+.import ${tmp_file} fastq
 CREATE INDEX qname_idx on fastq (qname);
 
 select datetime('now', 'localtime')||" import done";
@@ -71,21 +67,29 @@ CREATE INDEX right_idx on right (qname);
 
 select datetime('now', 'localtime')||" create left right index done";
 
-.output ${left_file_tmp}
+.output "| gzip -c > ${left_file}"
 .separator "\n"
 select distinct "@"||fastq.qname||"/1", seq, '+', qual from right join fastq on fastq.qname == right.qname where flag&2368 == 64 order by right.qname;
 
 .output stderr
-select datetime('now', 'localtime')||" create left reads done";
+select datetime('now', 'localtime')||" create left reads output file done";
 
-.output ${right_file_tmp}
-.separator "\n"
-select distinct "@"||fastq.qname||"/2", seq, '+', qual from left join fastq on fastq.qname == left.qname where flag&2432 == 128 order by left.qname;
+CREATE TABLE right_tmp as select distinct "@"||fastq.qname||"/2" as qname, seq, '+', qual from left join fastq on fastq.qname == left.qname where flag&2432 == 128 order by left.qname;
+.separator "\t"
+.output ${tmp_file}.qname
+select qname from right_tmp;
+.output "| tr 'ATGC' 'TACG' | rev > ${tmp_file}.seq"
+select seq from right_tmp;
+.output ${tmp_file}.qual
+select '+', qual from right_tmp;
 
 .output stderr
-select datetime('now', 'localtime')||" create right reads done";
+select datetime('now', 'localtime')||" create right reads data files done";
 .exit
 EOF
 
-wait
-rm ${tmp_file} ${left_file_tmp} ${right_file_tmp}
+paste ${tmp_file}.qname ${tmp_file}.seq ${tmp_file}.qual | tr "\t" "\n" | gzip -c > ${right_file}
+
+echo 'select datetime("now", "localtime")||" create right reads output file done";' | sqlite3
+
+rm ${tmp_file} ${tmp_file}.qname ${tmp_file}.seq ${tmp_file}.qual
