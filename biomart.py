@@ -55,54 +55,13 @@ added on 2012.7.5:
     http://feb2012.archive.ensembl.org/biomart/martview/cb52d463c62bdb0ac8038b8202d4bf6e?VIRTUALSCHEMANAME=default&ATTRIBUTES=hsapiens_gene_ensembl.default.feature_page.ensembl_gene_id|hsapiens_gene_ensembl.default.feature_page.ensembl_transcript_id|hsapiens_gene_ensembl.default.feature_page.external_gene_id|hsapiens_gene_ensembl.default.feature_page.external_transcript_id|hsapiens_gene_ensembl.default.feature_page.go_id|hsapiens_gene_ensembl.default.feature_page.name_1006|hsapiens_gene_ensembl.default.feature_page.definition_1006|hsapiens_gene_ensembl.default.feature_page.go_linkage_type|hsapiens_gene_ensembl.default.feature_page.namespace_1003&FILTERS=hsapiens_gene_ensembl.default.filters.go_parent_term."GO:0006629"&VISIBLEPANEL=resultspanel
 """
 
-example1 = """
-output: --------------------------------------------------------------------------------------------
-HGNC symbol 	Affy HC G110 	Ensembl Gene ID 	EntrezGene ID 	Ensembl Transcript ID
-TAL1 	560_s_at 	ENSG00000162367 	6886 	ENST00000371884
-TAL1 	560_s_at 	ENSG00000162367 	6886 	ENST00000294339
-TAL1 		ENSG00000162367 	6886 	ENST00000459729
-TAL1 		ENSG00000162367 	6886 	ENST00000464796
-TAL1 		ENSG00000162367 	6886 	ENST00000481091
-TAL1 		ENSG00000162367 	6886 	ENST00000465912
-TAL1 	560_s_at 	ENSG00000162367 	6886 	ENST00000371883
-CYP4A11 	1391_s_at 	ENSG00000187048 	1579 	ENST00000310638
-CYP4A11 	1391_s_at 	ENSG00000187048 	1579 	ENST00000475477
-CYP4A11 	1391_s_at 	ENSG00000187048 	1579 	ENST00000462347
-
-query:  --------------------------------------------------------------------------------------------     
-    <?xml version="1.0" encoding="UTF-8"?>
-    <!DOCTYPE Query>
-    <Query  virtualSchemaName = "default" formatter = "TSV" header = "0" uniqueRows = "0" count = "" datasetConfigVersion = "0.6" >
-                            
-            <Dataset name = "hsapiens_gene_ensembl" interface = "default" >
-                    <Filter name = "ensembl_gene_id" value = "ENSG00000162367,ENSG00000187048"/>
-                    <Attribute name = "hgnc_symbol" />
-                    <Attribute name = "affy_hc_g110" />
-                    <Attribute name = "ensembl_gene_id" />
-                    <Attribute name = "entrezgene" />
-                    <Attribute name = "ensembl_transcript_id" />
-            </Dataset>
-    </Query>
-
-left side of biomart:  -------------------------------------------------------------------------------
-    Dataset
-    Homo sapiens genes (GRCh37.p5)
-    Filters
-    Ensembl Gene ID(s) [e.g. ENSG00000139618]: [ID-list specified]
-    Attributes
-    HGNC symbol
-    Affy HC G110
-    Ensembl Gene ID
-    EntrezGene ID
-    Ensembl Transcript ID
-    """
-
 DEBUG = False
 
 mart_host = "http://www.biomart.org"
 mart_url_prefix = "/biomart/martservice?"
 mart_urls = {"biomart": "http://www.biomart.org/biomart/martservice?",
              "ensembl": "http://www.ensembl.org/biomart/martservice?",                # ensembl is more update and faster than biomart
+             "ensgrch37" : "http://grch37.ensembl.org/biomart/martservice",
              "ensemblv66": "http://feb2012.archive.ensembl.org/biomart/martservice?",
              "ensemblv67": "http://may2012.archive.ensembl.org/biomart/martservice?",
              "ensemblv68": "http://jul2012.archive.ensembl.org/biomart/martservice?",
@@ -110,7 +69,20 @@ mart_urls = {"biomart": "http://www.biomart.org/biomart/martservice?",
              "ensemblv70": "http://jan2013.archive.ensembl.org/biomart/martservice?",
              "ensemblv71": "http://apr2013.archive.ensembl.org/biomart/martservice?",
              "ensemblv72": "http://jun2013.archive.ensembl.org/biomart/martservice?",
-             "ensemblv73": "http://sep2013.archive.ensembl.org/biomart/martservice?"
+             "ensemblv73": "http://sep2013.archive.ensembl.org/biomart/martservice?",
+             "ensemblv74": "http://dec2013.archive.ensembl.org/biomart/martservice?",
+             "ensemblv75": "http://feb2014.archive.ensembl.org/biomart/martservice?",
+             "ensemblv76": "http://aug2014.archive.ensembl.org/biomart/martservice?",
+             "ensemblv77": "http://oct2014.archive.ensembl.org/biomart/martservice?",
+             "ensemblv78": "http://dec2014.archive.ensembl.org/biomart/martservice?",
+             "ensemblv79": "http://mar2015.archive.ensembl.org/biomart/martservice?",
+             "ensemblv80": "http://may2015.archive.ensembl.org/biomart/martservice?",
+             "ensemblv81": "http://jul2015.archive.ensembl.org/biomart/martservice?",
+             "ensemblv82": "http://sep2015.archive.ensembl.org/biomart/martservice?",
+             "ensemblv83": "http://dec2015.archive.ensembl.org/biomart/martservice?",
+             "ensemblv84": "http://mar2016.archive.ensembl.org/biomart/martservice?",
+             "ensemblv85": "http://jul2016.archive.ensembl.org/biomart/martviewice?",
+             "ensemblv86": "http://oct2016.archive.ensembl.org/biomart/martservice?"
              }
 
 #-----------------------------------------------------------------
@@ -206,33 +178,55 @@ def easy_response(params_dict, base_url=None, site=None, echo=False):
         print data
     return "".join(data)
 
-
 #-----------------------------------------------------------------
 class BioMart:
 
-    def __init__(self, mart=None, dataset=None, timeout=1000, site=None):
+    def __init__(self, mart=None, dataset=None, timeout=1000, site="ensembl"):
         """ it seems mart is not necessary to query biomart, dataset+[filters+]attributes is enough"""
 
-        if site and site in mart_urls:
-            self.site = site
-        else:
-            self.site = "ensembl"
+        self.available_sites      = mart_urls.keys()
+        self.available_databases  = None
+        self.available_datasets   = None
 
-        self.mart = mart
-        self.dataset = dataset
+        if site:
+            self.use_site(site)
+        else:
+            self.site = site
+
+        if mart:
+            self.use_mart(mart)
+        else:
+            self.mart = mart
+
+        if dataset:
+            self.use_dataset(dataset)
+        else:
+            self.dataset = dataset
+
+        self.timeout = timeout
+
+    def list_sites(self):
+
+        return mart_urls.keys()
 
     def use_site(self, site):
         """ available site: mart_urls.keys()"""
 
-        self.site = site
+        if site and site in mart_urls:
+            self.site = site
+        else:
+            raise Exception("site {} is not valid.\n\t valid site: {}".format(site, mart_urls.keys()))
 
     #-------------------------------------------------
 
     def registry_information(self):
+        """
+        you don't need to use this. Use list_databases() instead
+        """
 
-        return self.available_databases()
+        return self.list_databases()
 
-    def available_databases(self):
+    def list_databases(self, echo=True):
         """
         actually list all available databases
 
@@ -246,7 +240,17 @@ class BioMart:
   <MartURLLocation database="functional_genomics_mart_65" default="0" displayName="ENSEMBL REGULATION 65 (SANGER UK)" host="www.biomart.org" includeDatasets="" martUser="" name="functional_genomics" path="/biomart/martservice" port="80" serverVirtualSchema="default" visible="1" />
   ...
 </MartRegistry>
-        """
+
+database default            displayName             host includeDatasets martUser                   name                  path port serverVirtualSchema visible
+ENSEMBL_MART_SEQUENCE          sequence_mart_87                       Sequence  www.ensembl.org                           ENSEMBL_MART_SEQUENCE  /biomart/martservice   80             default
+ENSEMBL_MART_VEGA                  vega_mart_87                        Vega 67  www.ensembl.org                               ENSEMBL_MART_VEGA  /biomart/martservice   80             default       1
+ENSEMBL_MART_ONTOLOGY          ontology_mart_87                       Ontology  www.ensembl.org                           ENSEMBL_MART_ONTOLOGY  /biomart/martservice   80             default
+ENSEMBL_MART_FUNCGEN         regulation_mart_87          Ensembl Regulation 87  www.ensembl.org                            ENSEMBL_MART_FUNCGEN  /biomart/martservice   80             default       1
+ENSEMBL_MART_MOUSE                mouse_mart_87               Mouse strains 87  www.ensembl.org                              ENSEMBL_MART_MOUSE  /biomart/martservice   80             default       1
+ENSEMBL_MART_GENOMIC   genomic_features_mart_87            Genomic features 87  www.ensembl.org                            ENSEMBL_MART_GENOMIC  /biomart/martservice   80             default
+ENSEMBL_MART_SNP                    snp_mart_87           Ensembl Variation 87  www.ensembl.org                                ENSEMBL_MART_SNP  /biomart/martservice   80             default       1
+ENSEMBL_MART_ENSEMBL            ensembl_mart_87       1       Ensembl Genes 87  www.ensembl.org                            ENSEMBL_MART_ENSEMBL  /biomart/martservice   80             default       1
+"""
 
         params_dict = {"type":"registry"}
 
@@ -260,34 +264,44 @@ class BioMart:
                 db = ln_dict['name']
                 db_dict[db] = ln_dict
         databases =  pd.DataFrame(db_dict.values(), index=db_dict.keys())
-        sys.stderr.write(databases.to_string())
+        if echo:
+            sys.stderr.write(databases.to_string())
 
         return databases
 
     def use_mart(self, mart):
         """set the value of mart
         This method is the same with use_database"""
-        self.mart = mart
+        self.use_database(mart)
 
     def use_database(self, database):
-        self.mart = database
+
+        # if self.available_databases is not set, set it first
+        if self.available_databases is None:  
+            self.available_databases = list(self.list_databases(echo=False)['name'])
+
+        if database and database in self.available_databases:
+            self.mart = database
+        else:
+            raise Exception("database/mart {} is not valid.\n\t valid databases: {}".format(database, self.available_databases))
 
     #-------------------------------------------------
 
-    def available_datasets(self, mart=None):
+    def list_datasets(self, mart=None, echo=True):
         """
 TableSet	oanatinus_gene_ensembl	Ornithorhynchus anatinus genes (OANA5)	1	OANA5	200	50000	default	2011-09-07 22:26:09
 TableSet	tguttata_gene_ensembl	Taeniopygia guttata genes (taeGut3.2.4)	1	taeGut3.2.4	200	50000	default	2011-09-07 22:26:36
 TableSet	cporcellus_gene_ensembl	Cavia porcellus genes (cavPor3)	1	cavPor3	200	50000	default	2011-09-07 22:27:40
 (......)
 
-The second column could be used in self.available_attributes() and self.available_filters() to retrieve available attributes and filters for a given dataset.
+The second column could be used in self.list_attributes() and self.list_filters() to retrieve available attributes and filters for a given dataset.
 """
 
         mart = mart if mart else self.mart
         if mart is None:
-            raise Exception("mart in available_databases() and self.mart couldn't be all None")
-        print "Mart being used is: ", mart
+            raise Exception("self.mart is None, either set self.mart first, or provide a 'mart=' here.")
+        if echo:
+            sys.stderr.write("Mart being used is: {}\n".format(mart))
 
         params_dict = {"type":"datasets", "mart":mart}
         data = easy_response(params_dict, site=self.site, echo=False)
@@ -296,26 +310,41 @@ The second column could be used in self.available_attributes() and self.availabl
         data2 = [ln.split('\t') for ln in data.strip().split('\n') if ln.strip()]
 
         datasets = pd.DataFrame(data2, columns=["type", "name", "displayName", "visible", "version", "sth2", "sth3", "default", "modified"])
-        sys.stderr.write(datasets.to_string())
+        if echo:
+            sys.stderr.write(datasets.to_string())
 
         return datasets
 
     def use_dataset(self, dataset):
+
+        # since "database" or "mart" infor is not needed buy a query(), it is OK to not provide "database/mart"
+
+        # # if self.available_datasets is not set, set it first
+        # if self.mart is None:
+        #     raise Exception("self.mart is not set.")
+        # if self.available_datasets is None:  
+        #     self.available_datasets = list(self.list_datasets(echo=False)['name'])
+
+        # if dataset and dataset in self.available_datasets:
+        #     self.dataset = dataset
+        # else:
+        #     raise Exception("dataset {} is not valid.\n\t valid datasets: {}".format(dataset, self.available_datasets))
+
         self.dataset = dataset
 
     #-------------------------------------------------
 
-    def available_attributes(self, dataset=None):
+    def list_attributes(self, dataset=None):
         """
         To retrieve available attributes for a given dataset.
 
         dataset is a valid dataset, for example: hsapiens_gene_ensembl, oanatinus_gene_ensembl, tguttata_gene_ensembl
-        dataset could be retrived by self.available_datasets()
+        dataset could be retrived by self.list_datasets()
         """
 
         dataset = dataset if dataset else self.dataset
         if dataset is None:
-            raise Exception("dataset in available_attributes() and self.dataset couldn't be all None")
+            raise Exception("dataset in list_attributes() and self.dataset couldn't be all None")
         print "Dataset being used is: ", dataset
 
         params_dict = {"type":"attributes", "dataset":dataset}
@@ -329,14 +358,14 @@ The second column could be used in self.available_attributes() and self.availabl
 
         return attributes
 
-    def available_filters(self, dataset=None):
+    def list_filters(self, dataset=None):
         """
         To retrieve available filters for a given dataset.
         """
 
         dataset = dataset if dataset else self.dataset
         if dataset is None:
-            raise Exception("dataset in available_filters() and self.dataset couldn't be all None")
+            raise Exception("dataset in list_filters() and self.dataset couldn't be all None")
         print "Dataset being used is: ", dataset
 
         params_dict = {"type":"filters", "dataset":dataset}
@@ -366,6 +395,9 @@ The second column could be used in self.available_attributes() and self.availabl
 
 
     def xml_query(self, xml=None):
+        '''
+        >>> BioMart(site="ensembl").xml_query(xml="""<!DOCTYPE Query><Query client="true" processor="TSV" limit="2" header="1"><Dataset name="hsapiens_gene_ensembl" config="gene_ensembl_config"><Filter name="chromosome_name" value="1" filter_list=""/><Attribute name="ensembl_gene_id"/><Attribute name="ensembl_transcript_id"/></Dataset></Query>""")
+        '''
 
         if xml is None:
             raise Exception("not valid input for xml_query")
@@ -377,17 +409,18 @@ The second column could be used in self.available_attributes() and self.availabl
     def query(self, attributes=None, xml=None, filters=None, dataset=None, return_raw=False):
         """
         example:
-            filters: affy_hg_u133a_2: ("202763_at","209310_s_at","207500_at")
+            filters: {"affy_hg_u133a_2": ("202763_at","209310_s_at","207500_at")}
             attributes: ["ensembl_gene_id", "ensembl_transcript_id", "affy_hg_u133a_2"]
-            dataset: hsapiens_gene_ensembl
+            dataset: "hsapiens_gene_ensembl"
+
+        Note: "mart" or "database" info is not needed by query().
         """
 
-        if not xml:  # query with xml
+        if xml is None:  # query with xml
+            dataset = dataset if dataset else self.dataset
             if dataset is None:
-                if self.dataset is None:
-                    raise Exception("dataset couldn't be None")
-                else:
-                    dataset = self.dataset
+                raise Exception("dataset in query() and self.dataset couldn't be all None")
+
             xml = build_query(dataset=dataset, attributes=attributes, filters=filters)
 
         params_dict = {"query": xml}
@@ -414,7 +447,6 @@ def test_query():
     mart_query_dataset = 'hsapiens_gene_ensembl'
     mart_query_filters = {"chromosome_name": "Y"}
     mart_query_attributes = ["ensembl_gene_id", "ensembl_transcript_id", 
-                             "external_gene_id", "external_transcript_id",
                              "hgnc_id", "hgnc_transcript_name", "hgnc_symbol"]
 
     xml = build_query(dataset=mart_query_dataset, attributes=mart_query_attributes, filters=mart_query_filters)
@@ -495,6 +527,16 @@ ENSG00000137757 	ENST00000260315 	207500_at
 
     return results
 
+def test_allinone():
+    BioMart(mart="ENSEMBL_MART_ENSEMBL", dataset="hsapiens_gene_ensembl").query(filters={"hgnc_symbol": ["EGFR", "KRAS", "NRAS", "BRAF"]},
+                attributes=["ensembl_gene_id", "ensembl_transcript_id", "external_gene_name", "hgnc_symbol",
+                            "start_position", "end_position", "band", "refseq_mrna", "refseq_peptide"])
+
+def test_allinone2():
+    BioMart().query(dataset="hsapiens_gene_ensembl", filters={"hgnc_symbol": ["EGFR", "KRAS", "NRAS", "BRAF"]},
+                attributes=["ensembl_gene_id", "ensembl_transcript_id", "external_gene_name", "hgnc_symbol",
+                            "start_position", "end_position", "band", "refseq_mrna", "refseq_peptide"])
+
 #TODO:
 # 1) to write some examples similar with biomaRt in bioconductor.
 # 2) clean the parameter list of all functions
@@ -533,3 +575,17 @@ if __name__ == '__main__':
     else: # args.xml is None, will build query from dataset, attributes and filters.
         pass
     # TODO: to be continued
+
+    # TODO: make a few practial examples, eg. get refseq NM id for a gene symbol.
+
+    BioMart(mart="ENSEMBL_MART_ENSEMBL", dataset="hsapiens_gene_ensembl").query(
+            filters={"hgnc_symbol": ["EGFR", "KRAS", "NRAS", "BRAF"]}, 
+            attributes=["ensembl_gene_id", "ensembl_transcript_id", "external_gene_name", "hgnc_symbol",
+                        "start_position", "end_position", "band", "refseq_mrna", "refseq_peptide"]
+            )
+
+    BioMart().query(dataset="hsapiens_gene_ensembl",
+                    filters={"hgnc_symbol": ["EGFR", "KRAS", "NRAS", "BRAF"]}, 
+                    attributes=["ensembl_gene_id", "ensembl_transcript_id", "external_gene_name", "hgnc_symbol",
+                                "start_position", "end_position", "band", "refseq_mrna", "refseq_peptide"]
+                    )
