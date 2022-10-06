@@ -3,16 +3,6 @@
 import sys
 from shlex import split as shlex_split
 import requests
-from progressbar import (
-    Bar,
-    Counter,
-    ETA,
-    FileTransferSpeed,
-    Percentage,
-    ProgressBar,
-    Timer,
-    UnknownLength,
-)
 import pandas as pd
 
 """
@@ -174,44 +164,19 @@ def easy_response(params_dict, base_url=None, site=None, echo=False):
         sys.stderr.write("response -\n{}".format(r.headers))
     if r.ok:
         length = r.headers["Content-Length"] if "Content-Length" in r.headers else None
-        # data = r.content
-        sys.stderr.write(f"length={length}\n")
 
-        if length:
-            widgets = [
-                "Downloading: ",
-                Percentage(),
-                " ",
-                Bar(marker="0", left="[", right="]"),
-                " ",
-                ETA(),
-                " ",
-                FileTransferSpeed(),
-            ]
-            pbar = ProgressBar(widgets=widgets, maxval=length).start()
-        else:  # no Content-Length information
-            # data = r.content
-            widgets = [
-                "Downloading: ",
-                Counter(),
-                " Bytes at ",
-                FileTransferSpeed(),
-                " (",
-                Timer(),
-                ")",
-            ]
-            pbar = ProgressBar(widgets=widgets, maxval=UnknownLength).start()
-
+        sys.stderr.write("Start to download ")
         current_size, data = 0, []
         for buf in r.iter_content(1024 * 1024, decode_unicode=True):
             if buf:
                 data.append(buf)
                 current_size += len(buf)
-                pbar.update(current_size)
-        pbar.finish()
+                sys.stderr.write("\b- ")
+        sys.stderr.write("\bdone.\n")
 
     else:
         raise Exception("Got error: %s" % r.error)
+
     if echo or DEBUG:
         print(data)
 
@@ -729,7 +694,7 @@ if __name__ == "__main__":
         ],
     )
 
-    BioMart().query(
+    result = BioMart().query(
         dataset="hsapiens_gene_ensembl",
         filters={"hgnc_symbol": ["EGFR", "KRAS", "NRAS", "BRAF"]},
         attributes=[
@@ -744,3 +709,4 @@ if __name__ == "__main__":
             "refseq_peptide",
         ],
     )
+    sys.stout.write(result)
