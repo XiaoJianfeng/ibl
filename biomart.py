@@ -49,6 +49,33 @@ http://www.biomart.org/faqs.html is also worth reading. Many examples how to bui
 added on 2012.7.5:
     if you want to query older version of ensembl, you need to use matview provided by ensembl.
     http://feb2012.archive.ensembl.org/biomart/martview/cb52d463c62bdb0ac8038b8202d4bf6e?VIRTUALSCHEMANAME=default&ATTRIBUTES=hsapiens_gene_ensembl.default.feature_page.ensembl_gene_id|hsapiens_gene_ensembl.default.feature_page.ensembl_transcript_id|hsapiens_gene_ensembl.default.feature_page.external_gene_id|hsapiens_gene_ensembl.default.feature_page.external_transcript_id|hsapiens_gene_ensembl.default.feature_page.go_id|hsapiens_gene_ensembl.default.feature_page.name_1006|hsapiens_gene_ensembl.default.feature_page.definition_1006|hsapiens_gene_ensembl.default.feature_page.go_linkage_type|hsapiens_gene_ensembl.default.feature_page.namespace_1003&FILTERS=hsapiens_gene_ensembl.default.filters.go_parent_term."GO:0006629"&VISIBLEPANEL=resultspanel
+
+# functions and classes
+
+*) build_xml_query()
+    build query xml string from dataset, attributes, filters.
+
+*) easy_response()
+    a helper function to post with requests and get response
+
+*) query_xml()
+   will call build_xml_query() and easy_response() to query biomart with xml string
+
+*) class BioMart
+    def __init__(self, mart=None, dataset=None, timeout=1000, site="ensembl"):
+    def list_sites(self):
+    def use_site(self, site):
+    def registry_information(self):
+    def list_databases(self, echo=True):
+    def use_mart(self, mart):
+    def use_database(self, database):
+    def list_datasets(self, mart=None, echo=True):
+    def use_dataset(self, dataset):
+    def list_attributes(self, dataset=None):
+    def list_filters(self, dataset=None):
+    def configuration(self, dataset=None):
+    def query(self, attributes=None, xml=None, filters=None, dataset=None):
+    def get_BM(self, *args, **kwds):
 """
 
 DEBUG = False
@@ -83,49 +110,73 @@ mart_urls = {
 }
 
 # -----------------------------------------------------------------
-def build_query(dataset, attributes, filters=None, formatter="TSV"):
+def build_xml_query(dataset, attributes, filters=None, formatter="TSV"):
     """
     Only dataset, filters, and attributes are needed to build a query, while database is not needed.
     I guess this is because the dataset name is enough to identify itself.
 
     dataset: table name
-    filters: should be a dict
+    filters: should be a list of dict, eg.
+             filters=[{"name": "hgnc_symbol", "value": ["EGFR", "NRAS"]}],
+             filters=[{"name": "external_gene_name", "value": ["EGFR", "MET", "BRAF"]}]
+             filters=[{"name": "affy_hg_u133_plus_2", "value": ("202763_at", "209310_s_at", "207500_at")}]
     attributes: should be list
 
     formatter: TSV or FASTA
+
     """
 
-    mart_query_dataset = """\t<Dataset name = "{}" interface = "default" >\n""".format(
-        dataset
-    )
+    mart_query_dataset = f"""\t<Dataset name = "{dataset}" interface = "default" >\n"""
 
     if formatter == "TSV":
         # Note: if header = "0" --> no header; header = "1" or "ture" --> with header
         # uniqueRows: "0" - don't remove duplicate lines; "1" - remove uplicatel ines.
         # limit = N could also be added
-        mart_query_header = """<?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE Query>
-        <Query  virtualSchemaName = "default" formatter = "TSV" header = "1" uniqueRows = "1" count = "" datasetConfigVersion = "0.6" >\n"""
+        mart_query_header = (
+            """<?xml version="1.0" encoding="UTF-8"?>\n"""
+            """<!DOCTYPE Query>\n"""
+            """<Query  virtualSchemaName = "default" formatter = "TSV" header = "1" uniqueRows = "1" count = "" datasetConfigVersion = "0.6" >\n"""
+        )
     elif formatter == "FASTA":
-        mart_query_header = """<?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE Query>
-        <Query  virtualSchemaName = "default" formatter = "FASTA" header = "0" uniqueRows = "0" count = "" datasetConfigVersion = "0.6" >\n"""
+        mart_query_header = (
+            """<?xml version="1.0" encoding="UTF-8"?>\n"""
+            """<!DOCTYPE Query>\n"""
+            """<Query  virtualSchemaName = "default" formatter = "FASTA" header = "0" uniqueRows = "0" count = "" datasetConfigVersion = "0.6" >\n"""
+        )
     else:
         raise Exception("Currently only 'TSV' and 'FASTA' are supported as formatter")
 
-    mart_query_tail = "\t</Dataset>\n</Query>"
+    mart_query_tail = "\t</Dataset>\n</Query>\n"
 
     if filters:  # filters may be None
         filter_buffer = []
-        for k, v in list(filters.items()):
-            if not isinstance(v, (list, tuple)):
-                raise Exception("%s should be iterable" % v)
-            if not isinstance(
-                v, str
-            ):  # v is a list or tuple of string, else, v is string
-                v = ",".join(v)
-            item_str = """\t\t<Filter name = "{}" value = "{}"/>\n""".format(k, v)
+        for filt in filters:
+            filt_name = filt["name"]
+
+            if not isinstance(filt, dict):
+                raise Exception(f"{filt} should be a dict ")
+
+            v_repr_list = []
+            for k, v in filt.items():
+                if k == "name":
+                    continue
+                if isinstance(v, (tuple, list)):
+                    values_str = ",".join(map(str, v))
+                elif isinstance(v, str):
+                    values_str = v
+                else:
+                    raise Exception(
+                        f"values of a filter dict should be instance of tuple/list/str, but got {v}\n"
+                    )
+                v_repr_list.append(f'{k} = "{values_str}"')
+
+            v_repr_all = " ".join(v_repr_list)
+
+            item_str = f"""\t\t<Filter name = "{filt_name}" {v_repr_all}/>\n""".format(
+                k, v
+            )
             filter_buffer.append(item_str)
+
         mart_query_filter = "".join(filter_buffer)
     else:
         mart_query_filter = ""
@@ -133,7 +184,7 @@ def build_query(dataset, attributes, filters=None, formatter="TSV"):
     if isinstance(attributes, str):  # if attributes is a single value, make it a list
         attributes = [attributes]
     mart_query_attributes = "".join(
-        """\t\t<Attribute name = "{}" />\n""".format(s) for s in attributes
+        f"""\t\t<Attribute name = "{s}" />\n""" for s in attributes
     )
 
     xml = (
@@ -158,16 +209,16 @@ def easy_response(params_dict, base_url=None, site=None, echo=False):
 
     r = requests.post(base_url, data=params_dict)
     if DEBUG:
-        sys.stderr.write("requests.post -\n{}: {}".format(base_url, params_dict))
+        sys.stderr.write(f"requests.post -\n{base_url}: {params_dict}\n")
 
     if DEBUG:
-        sys.stderr.write("response -\n{}".format(r.headers))
+        sys.stderr.write(f"response -\n{r.headers}\n")
     if r.ok:
-        length = r.headers["Content-Length"] if "Content-Length" in r.headers else None
+        r.headers["Content-Length"] if "Content-Length" in r.headers else None
 
         sys.stderr.write("Start to download ")
         current_size, data = 0, []
-        for buf in r.iter_content(1024 * 1024, decode_unicode=True):
+        for buf in r.iter_content(1024 * 10, decode_unicode=True):
             if buf:
                 data.append(buf)
                 current_size += len(buf)
@@ -181,6 +232,16 @@ def easy_response(params_dict, base_url=None, site=None, echo=False):
         print(data)
 
     return "".join(data)
+
+
+def query_xml(xml=None, site=None):
+
+    if xml is None:
+        raise Exception("not valid input for query_xml")
+
+    params_dict = {"query": xml}
+
+    return easy_response(params_dict, site=site)
 
 
 # -----------------------------------------------------------------
@@ -424,21 +485,7 @@ class BioMart:
 
         return easy_response(params_dict, site=self.site, echo=True)
 
-    def xml_query(self, xml=None):
-        '''
-        >>> BioMart(site="ensembl").xml_query(xml="""<!DOCTYPE Query><Query client="true" processor="TSV" limit="2" header="1"><Dataset name="hsapiens_gene_ensembl" config="gene_ensembl_config"><Filter name="chromosome_name" value="1" filter_list=""/><Attribute name="ensembl_gene_id"/><Attribute name="ensembl_transcript_id"/></Dataset></Query>""")
-        '''
-
-        if xml is None:
-            raise Exception("not valid input for xml_query")
-
-        params_dict = {"query": xml}
-
-        return easy_response(params_dict, site=self.site)
-
-    def query(
-        self, attributes=None, xml=None, filters=None, dataset=None, return_raw=False
-    ):
+    def query(self, attributes=None, xml=None, filters=None, dataset=None):
         """
         example:
             filters: {"affy_hg_u133a_2": ("202763_at","209310_s_at","207500_at")}
@@ -455,56 +502,101 @@ class BioMart:
                     "dataset in query() and self.dataset couldn't be all None"
                 )
 
-            xml = build_query(dataset=dataset, attributes=attributes, filters=filters)
+            xml = build_xml_query(
+                dataset=dataset, attributes=attributes, filters=filters
+            )
 
-        params_dict = {"query": xml}
-        print(params_dict)
-        data = easy_response(params_dict, site=self.site)
+        output = query_xml(xml, site=self.site)
 
-        if return_raw:
-            return data
-        else:
-            # TODO: check the output format as this only works for TSV format with header
-            data2 = [ln.split("\t") for ln in data.strip().split("\n")]
-            colnames = data2[0]
-            results = pd.DataFrame(data2[1:], columns=colnames)
+        # TODO: check the output format as this only works for TSV format with header
+        # results = [ln.split("\t") for ln in output.rstrip("\n").split("\n")]
 
-            return results
+        return output
 
     def get_BM(self, *args, **kwds):
         return self.query(*args, **kwds)
 
 
 # -----------------------------------------------------------------------
+def test_build_xml_query():
+
+    s = build_xml_query(
+        dataset="hsapiens_gene_ensembl",
+        attributes=[
+            "hgnc_symbol",
+            "ensembl_transcript_id",
+            "transcript_mane_select",
+            "transcript_mane_plus_clinical",
+            "refseq_mrna",
+        ],
+        filters=[{"name": "external_gene_name", "value": ["EGFR", "MET", "BRAF"]}],
+    )
+
+    expected_output = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Query>
+<Query  virtualSchemaName = "default" formatter = "TSV" header = "1" uniqueRows = "1" count = "" datasetConfigVersion = "0.6" >
+	<Dataset name = "hsapiens_gene_ensembl" interface = "default" >
+		<Filter name = "external_gene_name" value = "EGFR,MET,BRAF"/>
+		<Attribute name = "hgnc_symbol" />
+		<Attribute name = "ensembl_transcript_id" />
+		<Attribute name = "transcript_mane_select" />
+		<Attribute name = "transcript_mane_plus_clinical" />
+		<Attribute name = "refseq_mrna" />
+	</Dataset>
+</Query>
+"""
+
+    assert s == expected_output
 
 
 def test_query():
     # mart_query_database = 'ensembl'  # not needed, as the dataset name itself is enough to identify itself.
     # could be one dataset or more, how to explain multiple datasets remains to be determined
     mart_query_dataset = "hsapiens_gene_ensembl"
-    mart_query_filters = {"chromosome_name": "Y"}
+    mart_query_filters = [
+        {"name": "chromosome_name", "value": "Y"},
+        {"name": "mane_select", "excluded": "0"},
+        {"name": "start", "value": "5000000"},
+        {"name": "end", "value": "10000000"},
+    ]
     mart_query_attributes = [
+        "hgnc_symbol",
         "ensembl_gene_id",
         "ensembl_transcript_id",
-        "hgnc_id",
-        "hgnc_transcript_name",
-        "hgnc_symbol",
+        "chromosome_name",
+        "start",
+        "end",
     ]
 
-    xml = build_query(
+    xml = build_xml_query(
         dataset=mart_query_dataset,
         attributes=mart_query_attributes,
         filters=mart_query_filters,
     )
-    print(xml)
-    params_dict = {"query": xml}
 
-    return easy_response(params_dict)
+    output = query_xml(xml)
+
+    expected_output = """HGNC symbol	Gene stable ID	Transcript stable ID	Chromosome/scaffold name	Start	End
+PCDH11Y	ENSG00000099715	ENST00000698851	Y	5742224	5000226
+TSPY2	ENSG00000168757	ENST00000320701	Y	6249019	6246223
+AMELY	ENSG00000099721	ENST00000651267	Y	6911752	6865918
+TBL1Y	ENSG00000092377	ENST00000383032	Y	7101970	6910686
+TSPY4	ENSG00000233803	ENST00000426950	Y	9340284	9337464
+TSPY8	ENSG00000229549	ENST00000287721	Y	9360599	9357797
+TSPY3	ENSG00000228927	ENST00000457222	Y	9401223	9398421
+TSPY1	ENSG00000258992	ENST00000451548	Y	9469749	9466955
+TSPY9	ENSG00000238074	ENST00000440215	Y	9490081	9487267
+TSPY10	ENSG00000236424	ENST00000428845	Y	9530682	9527880
+"""
+
+    assert output == expected_output
+
+    return output
 
 
-def test():
+def test_easy_response():
 
-    mart_query_example = """<?xml version="1.0" encoding="UTF-8"?>
+    query_example = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Query>
 <Query  virtualSchemaName = "default" formatter = "TSV" header = "0" uniqueRows = "0" count = "" datasetConfigVersion = "0.6" >
                     
@@ -513,26 +605,78 @@ def test():
             <Attribute name = "hgnc_symbol" />
             <Attribute name = "affy_hc_g110" />
             <Attribute name = "ensembl_gene_id" />
-            <Attribute name = "entrezgene" />
             <Attribute name = "ensembl_transcript_id" />
     </Dataset>
 </Query>"""
-    mart_example_output = """ HGNC symbol 	Affy HC G110 	Ensembl Gene ID 	EntrezGene ID 	Ensembl Transcript ID
-TAL1 	560_s_at 	ENSG00000162367 	6886 	ENST00000371884
-TAL1 	560_s_at 	ENSG00000162367 	6886 	ENST00000294339
-TAL1 		ENSG00000162367 	6886 	ENST00000459729
-TAL1 		ENSG00000162367 	6886 	ENST00000464796
-TAL1 		ENSG00000162367 	6886 	ENST00000481091
-TAL1 		ENSG00000162367 	6886 	ENST00000465912
-TAL1 	560_s_at 	ENSG00000162367 	6886 	ENST00000371883
-CYP4A11 	1391_s_at 	ENSG00000187048 	1579 	ENST00000310638
-CYP4A11 	1391_s_at 	ENSG00000187048 	1579 	ENST00000475477
-CYP4A11 	1391_s_at 	ENSG00000187048 	1579 	ENST00000462347
+
+    expected_output = """TAL1	560_s_at	ENSG00000162367	ENST00000371884
+TAL1	560_s_at	ENSG00000162367	ENST00000691006
+TAL1	560_s_at	ENSG00000162367	ENST00000294339
+TAL1		ENSG00000162367	ENST00000459729
+TAL1		ENSG00000162367	ENST00000481091
+TAL1		ENSG00000162367	ENST00000465912
+CYP4A11	1391_s_at	ENSG00000187048	ENST00000310638
+CYP4A11	1391_s_at	ENSG00000187048	ENST00000475477
+CYP4A11	1391_s_at	ENSG00000187048	ENST00000462347
+CYP4A11		ENSG00000187048	ENST00000474458
+CYP4A11		ENSG00000187048	ENST00000468629
+CYP4A11		ENSG00000187048	ENST00000465874
+CYP4A11		ENSG00000187048	ENST00000371905
+CYP4A11		ENSG00000187048	ENST00000496519
 """
 
-    params_dict = {"query": mart_query_example}
+    params_dict = {"query": query_example}
 
-    return easy_response(params_dict)
+    output = easy_response(params_dict)
+
+    assert output == expected_output
+
+
+def test_query_xml():
+
+    xml = """<!DOCTYPE Query>
+<Query client="true" processor="TSV" limit="2" header="1">
+<Dataset name="hsapiens_gene_ensembl" config="gene_ensembl_config">
+<Filter name="external_gene_name" value="MET,BRAF" filter_list=""/>
+<Attribute name="ensembl_gene_id"/>
+<Attribute name="ensembl_transcript_id"/>
+</Dataset></Query>
+"""
+
+    output = query_xml(xml=xml)
+
+    expected_output = """Gene stable ID	Transcript stable ID
+ENSG00000105976	ENST00000318493
+ENSG00000105976	ENST00000397752
+ENSG00000105976	ENST00000456159
+ENSG00000105976	ENST00000436117
+ENSG00000105976	ENST00000495962
+ENSG00000105976	ENST00000422097
+ENSG00000105976	ENST00000454623
+ENSG00000157764	ENST00000496384
+ENSG00000157764	ENST00000644969
+ENSG00000157764	ENST00000644120
+ENSG00000157764	ENST00000642875
+ENSG00000157764	ENST00000646891
+ENSG00000157764	ENST00000644905
+ENSG00000157764	ENST00000642228
+ENSG00000157764	ENST00000288602
+ENSG00000157764	ENST00000645443
+ENSG00000157764	ENST00000646730
+ENSG00000157764	ENST00000479537
+ENSG00000157764	ENST00000647434
+ENSG00000157764	ENST00000644650
+ENSG00000157764	ENST00000497784
+ENSG00000157764	ENST00000646334
+ENSG00000157764	ENST00000642272
+ENSG00000157764	ENST00000643356
+ENSG00000157764	ENST00000642808
+ENSG00000157764	ENST00000643790
+ENSG00000157764	ENST00000646427
+ENSG00000157764	ENST00000469930
+"""
+
+    assert output == expected_output
 
 
 def test_list():
@@ -553,17 +697,7 @@ def test_list():
         </Dataset>
     </Query>
 
-    Ensembl Gene ID 	Ensembl Transcript ID 	Affy HG U133-PLUS-2 probeset
-    ENSG00000196954 	ENST00000525116 	209310_s_at
-    ENSG00000196954 	ENST00000444739 	209310_s_at
-    ENSG00000196954 	ENST00000393150 	209310_s_at
-    ENSG00000196954 	ENST00000529565 	213596_at
-    ENSG00000196954 	ENST00000529565 	209310_s_at
-    ENSG00000196954 	ENST00000533730 	209310_s_at
-    ENSG00000196954 	ENST00000534356 	209310_s_at
-    ENSG00000196954 	ENST00000355546 	209310_s_at
-    ENSG00000137757 	ENST00000438448 	207500_at
-    ENSG00000137757 	ENST00000260315 	207500_at"""
+    """
 
     attributes = [
         "ensembl_gene_id",
@@ -574,48 +708,74 @@ def test_list():
         "start_position",
         "end_position",
     ]
-    filters = {"affy_hg_u133_plus_2": ("202763_at", "209310_s_at", "207500_at")}
+    filters = [
+        {
+            "name": "affy_hg_u133_plus_2",
+            "value": ("202763_at", "209310_s_at", "207500_at"),
+        }
+    ]
     dataset = "hsapiens_gene_ensembl"
 
     results = BioMart().query(attributes=attributes, filters=filters, dataset=dataset)
-    print(results)
 
-    return results
+    expected_output = """Gene stable ID	Transcript stable ID	AFFY HG U133 Plus 2 probe	HGNC symbol	Chromosome/scaffold name	Gene start (bp)	Gene end (bp)
+ENSG00000196954	ENST00000525116	209310_s_at	CASP4	11	104942866	104969366
+ENSG00000196954	ENST00000444739	209310_s_at	CASP4	11	104942866	104969366
+ENSG00000196954	ENST00000393150	209310_s_at	CASP4	11	104942866	104969366
+ENSG00000196954	ENST00000529565	209310_s_at	CASP4	11	104942866	104969366
+ENSG00000196954	ENST00000533730	209310_s_at	CASP4	11	104942866	104969366
+ENSG00000196954	ENST00000534356	209310_s_at	CASP4	11	104942866	104969366
+ENSG00000137757	ENST00000438448	207500_at	CASP5	11	104994235	105023168
+ENSG00000137757	ENST00000393141	207500_at	CASP5	11	104994235	105023168
+ENSG00000137757	ENST00000418434	207500_at	CASP5	11	104994235	105023168
+ENSG00000137757	ENST00000260315	207500_at	CASP5	11	104994235	105023168
+ENSG00000137757	ENST00000444749	207500_at	CASP5	11	104994235	105023168
+ENSG00000137757	ENST00000526056	207500_at	CASP5	11	104994235	105023168
+ENSG00000137757	ENST00000531367	207500_at	CASP5	11	104994235	105023168
+ENSG00000137757	ENST00000456200	207500_at	CASP5	11	104994235	105023168
+ENSG00000164305	ENST00000393585	202763_at	CASP3	4	184627696	184650062
+ENSG00000164305	ENST00000308394	202763_at	CASP3	4	184627696	184650062
+ENSG00000164305	ENST00000523916	202763_at	CASP3	4	184627696	184650062
+ENSG00000164305	ENST00000700100	202763_at	CASP3	4	184627696	184650062
+ENSG00000164305	ENST00000700101	202763_at	CASP3	4	184627696	184650062
+ENSG00000164305	ENST00000700102	202763_at	CASP3	4	184627696	184650062
+ENSG00000164305	ENST00000700103	202763_at	CASP3	4	184627696	184650062
+ENSG00000164305	ENST00000700104	202763_at	CASP3	4	184627696	184650062
+"""
+
+    assert results == expected_output
 
 
 def test_allinone():
-    BioMart(mart="ENSEMBL_MART_ENSEMBL", dataset="hsapiens_gene_ensembl").query(
-        filters={"hgnc_symbol": ["EGFR", "KRAS", "NRAS", "BRAF"]},
-        attributes=[
-            "ensembl_gene_id",
-            "ensembl_transcript_id",
-            "external_gene_name",
-            "hgnc_symbol",
-            "start_position",
-            "end_position",
-            "band",
-            "refseq_mrna",
-            "refseq_peptide",
-        ],
-    )
-
-
-def test_allinone2():
-    BioMart().query(
+    output = BioMart().query(
         dataset="hsapiens_gene_ensembl",
-        filters={"hgnc_symbol": ["EGFR", "KRAS", "NRAS", "BRAF"]},
+        filters=[{"name": "hgnc_symbol", "value": ["EGFR", "NRAS"]}],
         attributes=[
-            "ensembl_gene_id",
-            "ensembl_transcript_id",
-            "external_gene_name",
             "hgnc_symbol",
             "start_position",
             "end_position",
-            "band",
-            "refseq_mrna",
-            "refseq_peptide",
+            "ensembl_transcript_id",
         ],
     )
+
+    expected_output = """HGNC symbol	Gene start (bp)	Gene end (bp)	Transcript stable ID
+EGFR	55019017	55211628	ENST00000344576
+EGFR	55019017	55211628	ENST00000275493
+EGFR	55019017	55211628	ENST00000455089
+EGFR	55019017	55211628	ENST00000342916
+EGFR	55019017	55211628	ENST00000420316
+EGFR	55019017	55211628	ENST00000700144
+EGFR	55019017	55211628	ENST00000459688
+EGFR	55019017	55211628	ENST00000463948
+EGFR	55019017	55211628	ENST00000450046
+EGFR	55019017	55211628	ENST00000700145
+EGFR	55019017	55211628	ENST00000485503
+EGFR	55019017	55211628	ENST00000700146
+EGFR	55019017	55211628	ENST00000700147
+NRAS	114704469	114716771	ENST00000369535
+"""
+
+    assert output == expected_output
 
 
 # TODO:
@@ -663,50 +823,20 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    bm = BioMart()
-    if args.site is not None:
-        bm.use_site(args.site)
+    test_list()
 
-    if args.xml is not None:
-        if args.xml == "-":
-            xml = sys.stdin.read()
-        else:
-            xml = open(args.xml).read()
-        sys.stdout.write(bm.query(xml=xml, return_raw=True))
-    else:  # args.xml is None, will build query from dataset, attributes and filters.
-        pass
-    # TODO: to be continued
+    # bm = BioMart()
+    # if args.site is not None:
+    #     bm.use_site(args.site)
 
-    # TODO: make a few practial examples, eg. get refseq NM id for a gene symbol.
+    # if args.xml is not None:
+    #     if args.xml == "-":
+    #         xml = sys.stdin.read()
+    #     else:
+    #         xml = open(args.xml).read()
+    #     sys.stdout.write(bm.query(xml=xml, return_raw=True))
+    # else:  # args.xml is None, will build query from dataset, attributes and filters.
+    #     pass
+    # # TODO: to be continued
 
-    BioMart(mart="ENSEMBL_MART_ENSEMBL", dataset="hsapiens_gene_ensembl").query(
-        filters={"hgnc_symbol": ["EGFR", "KRAS", "NRAS", "BRAF"]},
-        attributes=[
-            "ensembl_gene_id",
-            "ensembl_transcript_id",
-            "external_gene_name",
-            "hgnc_symbol",
-            "start_position",
-            "end_position",
-            "band",
-            "refseq_mrna",
-            "refseq_peptide",
-        ],
-    )
-
-    result = BioMart().query(
-        dataset="hsapiens_gene_ensembl",
-        filters={"hgnc_symbol": ["EGFR", "KRAS", "NRAS", "BRAF"]},
-        attributes=[
-            "ensembl_gene_id",
-            "ensembl_transcript_id",
-            "external_gene_name",
-            "hgnc_symbol",
-            "start_position",
-            "end_position",
-            "band",
-            "refseq_mrna",
-            "refseq_peptide",
-        ],
-    )
-    sys.stout.write(result)
+    # # TODO: make a few practial examples, eg. get refseq NM id for a gene symbol.
